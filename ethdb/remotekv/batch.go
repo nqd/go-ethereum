@@ -26,6 +26,8 @@ func (b *batch) Delete(key []byte) error {
 		},
 	)
 	b.size += len(key)
+
+	return nil
 }
 
 // Put implements ethdb.Batch.
