@@ -1,19 +1,16 @@
 package remotekv
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-)
+	"context"
 
-type keyvalue struct {
-	key    []byte
-	value  []byte
-	delete bool
-}
+	"github.com/ethereum/go-ethereum/ethdb"
+
+	api "github.cbhq.net/dinh-nguyen/kvdb/gen/go/coinbase/kvdb/api/v1"
+)
 
 type batch struct {
 	db     *Database
-	writes []keyvalue
+	writes []*api.Write
 	size   int
 }
 
@@ -22,7 +19,11 @@ var _ ethdb.Batch = (*batch)(nil)
 // Delete implements ethdb.Batch.
 func (b *batch) Delete(key []byte) error {
 	b.writes = append(b.writes,
-		keyvalue{key, nil, true},
+		&api.Write{
+			Key:    key,
+			Val:    nil,
+			Delete: true,
+		},
 	)
 	b.size += len(key)
 }
@@ -30,7 +31,11 @@ func (b *batch) Delete(key []byte) error {
 // Put implements ethdb.Batch.
 func (b *batch) Put(key []byte, value []byte) error {
 	b.writes = append(b.writes,
-		keyvalue{key, common.CopyBytes(value), false},
+		&api.Write{
+			Key:    key,
+			Val:    value,
+			Delete: false,
+		},
 	)
 	b.size += len(key) + len(value)
 
@@ -55,5 +60,12 @@ func (b *batch) ValueSize() int {
 
 // Write implements ethdb.Batch.
 func (b *batch) Write() error {
-	panic("unimplemented")
+	_, err := b.db.client.WriteBatch(
+		context.Background(),
+		&api.WriteBatchRequest{
+			Writes: b.writes,
+		},
+	)
+
+	return err
 }

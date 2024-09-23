@@ -110,12 +110,26 @@ func (d *Database) NewBatch() ethdb.Batch {
 
 // NewBatchWithSize implements ethdb.Database.
 func (d *Database) NewBatchWithSize(size int) ethdb.Batch {
-	panic("unimplemented")
+	return &batch{
+		db:     d,
+		writes: make([]*api.Write, 0, size),
+	}
 }
 
 // NewIterator implements ethdb.Database.
 func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
-	panic("unimplemented")
+	res, err := d.client.ReadAll(
+		context.Background(),
+		&api.ReadAllRequest{
+			Prefix: prefix,
+			Start:  start,
+		},
+	)
+	if err != nil {
+		return newEmptyIterator(err)
+	}
+
+	return newIterator(res.GetReads())
 }
 
 // Put implements ethdb.Database.
