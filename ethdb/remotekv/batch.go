@@ -46,7 +46,19 @@ func (b *batch) Put(key []byte, value []byte) error {
 
 // Replay implements ethdb.Batch.
 func (b *batch) Replay(w ethdb.KeyValueWriter) error {
-	panic("unimplemented")
+	for _, keyvalue := range b.writes {
+		if keyvalue.Delete {
+			if err := w.Delete(keyvalue.Key); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := w.Put(keyvalue.Key, keyvalue.Val); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Reset implements ethdb.Batch.

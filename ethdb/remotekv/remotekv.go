@@ -2,7 +2,6 @@ package remotekv
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum/go-ethereum/ethdb"
 	"google.golang.org/grpc"
@@ -15,11 +14,7 @@ type Database struct {
 	client api.KVClient
 }
 
-var _ ethdb.Database = (*Database)(nil)
-
-var (
-	errRemoteKVNotFound = errors.New("not found")
-)
+var _ ethdb.KeyValueStore = (*Database)(nil)
 
 func New(conn *grpc.ClientConn) *Database {
 	client := api.NewKVClient(conn)
@@ -30,44 +25,25 @@ func New(conn *grpc.ClientConn) *Database {
 	}
 }
 
-// Ancient implements ethdb.Database.
-func (d *Database) Ancient(kind string, number uint64) ([]byte, error) {
-	panic("unimplemented")
-}
-
-// AncientDatadir implements ethdb.Database.
-func (d *Database) AncientDatadir() (string, error) {
-	panic("unimplemented")
-}
-
-// AncientRange implements ethdb.Database.
-func (d *Database) AncientRange(kind string, start uint64, count uint64, maxBytes uint64) ([][]byte, error) {
-	panic("unimplemented")
-}
-
-// AncientSize implements ethdb.Database.
-func (d *Database) AncientSize(kind string) (uint64, error) {
-	panic("unimplemented")
-}
-
-// Ancients implements ethdb.Database.
-func (d *Database) Ancients() (uint64, error) {
-	panic("unimplemented")
-}
-
 // Close implements ethdb.Database.
 func (d *Database) Close() error {
 	return d.conn.Close()
 }
 
 // Compact implements ethdb.Database.
+// Currently does not have compact action
 func (d *Database) Compact(start []byte, limit []byte) error {
-	panic("unimplemented")
+	return nil
 }
 
 // Delete implements ethdb.Database.
 func (d *Database) Delete(key []byte) error {
-	panic("unimplemented")
+	_, err := d.client.Write(context.Background(), &api.WriteRequest{
+		Key:    key,
+		Delete: true,
+	})
+
+	return err
 }
 
 // Get implements ethdb.Database.
@@ -79,26 +55,17 @@ func (d *Database) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if res.Val == nil {
-		return nil, errRemoteKVNotFound
-	}
-
 	return res.Val, nil
 }
 
 // Has implements ethdb.Database.
+// TODO: check the not found case
 func (d *Database) Has(key []byte) (bool, error) {
-	panic("unimplemented")
-}
-
-// HasAncient implements ethdb.Database.
-func (d *Database) HasAncient(kind string, number uint64) (bool, error) {
-	panic("unimplemented")
-}
-
-// ModifyAncients implements ethdb.Database.
-func (d *Database) ModifyAncients(func(ethdb.AncientWriteOp) error) (int64, error) {
-	panic("unimplemented")
+	res, err := d.client.Read(context.Background(), &api.ReadRequest{Key: key})
+	if err != nil {
+		return false, err
+	}
+	return res.Val != nil, nil
 }
 
 // NewBatch implements ethdb.Database.
@@ -118,9 +85,9 @@ func (d *Database) NewBatchWithSize(size int) ethdb.Batch {
 
 // NewIterator implements ethdb.Database.
 func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
-	res, err := d.client.ReadAll(
+	res, err := d.client.ReadRange(
 		context.Background(),
-		&api.ReadAllRequest{
+		&api.ReadRangeRequest{
 			Prefix: prefix,
 			Start:  start,
 		},
@@ -134,35 +101,16 @@ func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 
 // Put implements ethdb.Database.
 func (d *Database) Put(key []byte, value []byte) error {
-	panic("unimplemented")
-}
+	_, err := d.client.Write(context.Background(), &api.WriteRequest{
+		Key:    key,
+		Val:    value,
+		Delete: false,
+	})
 
-// ReadAncients implements ethdb.Database.
-func (d *Database) ReadAncients(fn func(ethdb.AncientReaderOp) error) (err error) {
-	panic("unimplemented")
+	return err
 }
 
 // Stat implements ethdb.Database.
 func (d *Database) Stat() (string, error) {
-	panic("unimplemented")
-}
-
-// Sync implements ethdb.Database.
-func (d *Database) Sync() error {
-	panic("unimplemented")
-}
-
-// Tail implements ethdb.Database.
-func (d *Database) Tail() (uint64, error) {
-	panic("unimplemented")
-}
-
-// TruncateHead implements ethdb.Database.
-func (d *Database) TruncateHead(n uint64) (uint64, error) {
-	panic("unimplemented")
-}
-
-// TruncateTail implements ethdb.Database.
-func (d *Database) TruncateTail(n uint64) (uint64, error) {
-	panic("unimplemented")
+	return "", nil
 }

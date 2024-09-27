@@ -7,7 +7,7 @@ import (
 )
 
 type iterator struct {
-	kvs   []*api.ReadAll
+	kvs   []*api.ReadRange
 	index int
 	err   error
 }
@@ -21,7 +21,7 @@ func newEmptyIterator(err error) *iterator {
 	}
 }
 
-func newIterator(kvs []*api.ReadAll) *iterator {
+func newIterator(kvs []*api.ReadRange) *iterator {
 	return &iterator{
 		kvs:   kvs,
 		index: -1,
