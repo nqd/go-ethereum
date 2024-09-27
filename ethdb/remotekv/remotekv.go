@@ -119,3 +119,9 @@ func (d *Database) Put(key []byte, value []byte) error {
 func (d *Database) Stat() (string, error) {
 	return "", nil
 }
+
+func (d *Database) Reset() error {
+	_, err := d.client.Reset(context.Background(), &api.ResetRequest{})
+
+	return err
+}

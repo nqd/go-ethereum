@@ -13,12 +13,14 @@ import (
 )
 
 func TestRemoteKVDatabase(t *testing.T) {
-	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	assert.NoError(t, err)
-
 	t.Run("DatabaseSuite", func(t *testing.T) {
 		dbtest.TestDatabaseSuite(t, func() ethdb.KeyValueStore {
-			return remotekv.New(conn)
+			conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			assert.NoError(t, err)
+			s := remotekv.New(conn)
+			err = s.Reset()
+			assert.NoError(t, err)
+			return s
 		})
 	})
 }
