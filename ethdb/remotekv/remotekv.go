@@ -5,6 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethdb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	api "github.cbhq.net/dinh-nguyen/kvdb/gen/go/coinbase/kvdb/api/v1"
 )
@@ -61,11 +63,14 @@ func (d *Database) Get(key []byte) ([]byte, error) {
 // Has implements ethdb.Database.
 // TODO: check the not found case
 func (d *Database) Has(key []byte) (bool, error) {
-	res, err := d.client.Read(context.Background(), &api.ReadRequest{Key: key})
+	_, err := d.client.Read(context.Background(), &api.ReadRequest{Key: key})
 	if err != nil {
+		if status, ok := status.FromError(err); ok && status.Code() == codes.NotFound {
+			return false, nil
+		}
 		return false, err
 	}
-	return res.Val != nil, nil
+	return true, nil
 }
 
 // NewBatch implements ethdb.Database.
