@@ -720,6 +720,10 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 
 	var db ethdb.Database
 	var err error
+	// TODO: check for remotekv DB here
+	// n.config.RemoteKV
+	n.log.Info("Opening database", "name", name, "namespace", namespace, "readonly", readonly)
+
 	if n.config.DataDir == "" {
 		db = rawdb.NewMemoryDatabase()
 	} else {
@@ -752,6 +756,9 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient 
 	}
 	var db ethdb.Database
 	var err error
+
+	n.log.Info("Opening database with ancient store", "name", name, "namespace", namespace, "readonly", readonly, "dataDir", n.config)
+
 	if n.config.DataDir == "" {
 		db, err = rawdb.NewDatabaseWithFreezer(memorydb.New(), "", namespace, readonly)
 	} else {

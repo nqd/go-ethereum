@@ -282,6 +282,8 @@ func (d *Database) Close() error {
 
 // Has retrieves if a key is present in the key-value store.
 func (d *Database) Has(key []byte) (bool, error) {
+	d.log.Info("DB: Has", "key", key)
+
 	d.quitLock.RLock()
 	defer d.quitLock.RUnlock()
 	if d.closed {
@@ -301,6 +303,8 @@ func (d *Database) Has(key []byte) (bool, error) {
 
 // Get retrieves the given key if it's present in the key-value store.
 func (d *Database) Get(key []byte) ([]byte, error) {
+	d.log.Info("DB: Get", "key", key)
+
 	d.quitLock.RLock()
 	defer d.quitLock.RUnlock()
 	if d.closed {
@@ -320,6 +324,8 @@ func (d *Database) Get(key []byte) ([]byte, error) {
 
 // Put inserts the given value into the key-value store.
 func (d *Database) Put(key []byte, value []byte) error {
+	d.log.Info("DB: Put", "key", key)
+
 	d.quitLock.RLock()
 	defer d.quitLock.RUnlock()
 	if d.closed {
@@ -330,6 +336,8 @@ func (d *Database) Put(key []byte, value []byte) error {
 
 // Delete removes the key from the key-value store.
 func (d *Database) Delete(key []byte) error {
+	d.log.Info("DB: Delete", "key", key)
+
 	d.quitLock.RLock()
 	defer d.quitLock.RUnlock()
 	if d.closed {
@@ -341,6 +349,8 @@ func (d *Database) Delete(key []byte) error {
 // NewBatch creates a write-only key-value store that buffers changes to its host
 // database until a final write is called.
 func (d *Database) NewBatch() ethdb.Batch {
+	d.log.Info("DB: NewBatch")
+
 	return &batch{
 		b:  d.db.NewBatch(),
 		db: d,
@@ -349,6 +359,8 @@ func (d *Database) NewBatch() ethdb.Batch {
 
 // NewBatchWithSize creates a write-only database batch with pre-allocated buffer.
 func (d *Database) NewBatchWithSize(size int) ethdb.Batch {
+	d.log.Info("DB: NewBatch with size", "size", size)
+
 	return &batch{
 		b:  d.db.NewBatchWithSize(size),
 		db: d,
@@ -384,6 +396,8 @@ func (d *Database) Stat() (string, error) {
 // is treated as a key after all keys in the data store. If both is nil then it
 // will compact entire data store.
 func (d *Database) Compact(start []byte, limit []byte) error {
+	d.log.Info("DB: Compact", "start", start, "limit", limit)
+
 	// There is no special flag to represent the end of key range
 	// in pebble(nil in leveldb). Use an ugly hack to construct a
 	// large key to represent it.
@@ -523,6 +537,8 @@ type batch struct {
 
 // Put inserts the given value into the batch for later committing.
 func (b *batch) Put(key, value []byte) error {
+	b.db.log.Info("DB: Batch Put", "key", key)
+
 	if err := b.b.Set(key, value, nil); err != nil {
 		return err
 	}
@@ -532,6 +548,8 @@ func (b *batch) Put(key, value []byte) error {
 
 // Delete inserts the key removal into the batch for later committing.
 func (b *batch) Delete(key []byte) error {
+	b.db.log.Info("DB: Batch Delete", "key", key)
+
 	if err := b.b.Delete(key, nil); err != nil {
 		return err
 	}
@@ -541,11 +559,15 @@ func (b *batch) Delete(key []byte) error {
 
 // ValueSize retrieves the amount of data queued up for writing.
 func (b *batch) ValueSize() int {
+	b.db.log.Info("DB: Batch ValueSize")
+
 	return b.size
 }
 
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
+	b.db.log.Info("DB: Batch Write")
+
 	b.db.quitLock.RLock()
 	defer b.db.quitLock.RUnlock()
 	if b.db.closed {
@@ -556,12 +578,16 @@ func (b *batch) Write() error {
 
 // Reset resets the batch for reuse.
 func (b *batch) Reset() {
+	b.db.log.Info("DB: Batch Reset")
+
 	b.b.Reset()
 	b.size = 0
 }
 
 // Replay replays the batch contents.
 func (b *batch) Replay(w ethdb.KeyValueWriter) error {
+	b.db.log.Info("DB: Batch Replay")
+
 	reader := b.b.Reader()
 	for {
 		kind, k, v, ok, err := reader.Next()
@@ -598,6 +624,8 @@ type pebbleIterator struct {
 // of database content with a particular key prefix, starting at a particular
 // initial key (or after, if it does not exist).
 func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
+	d.log.Info("DB: NewIterator", "prefix", prefix, "start", start)
+
 	iter, _ := d.db.NewIter(&pebble.IterOptions{
 		LowerBound: append(prefix, start...),
 		UpperBound: upperBound(prefix),
