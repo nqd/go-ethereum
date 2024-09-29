@@ -30,11 +30,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/ethdb/pebble"
-	"github.com/ethereum/go-ethereum/ethdb/remotekv"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/olekukonko/tablewriter"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // freezerdb is a database wrapper that enables ancient chain segment freezing.
@@ -307,15 +304,6 @@ func NewMemoryDatabase() ethdb.Database {
 // chain segments into cold storage.
 func NewMemoryDatabaseWithCap(size int) ethdb.Database {
 	return NewDatabase(memorydb.NewWithCap(size))
-}
-
-func NewRemoteKVDatabase() ethdb.Database {
-	conn, err := grpc.NewClient("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic(err)
-	}
-
-	return NewDatabase(remotekv.New(conn))
 }
 
 // NewLevelDBDatabase creates a persistent key-value database without a freezer
