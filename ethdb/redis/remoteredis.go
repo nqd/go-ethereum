@@ -1,4 +1,4 @@
-package remoteredis
+package redis
 
 import (
 	"context"
@@ -41,9 +41,7 @@ const (
 
 var errRemoteRedisNotFound = errors.New("not found")
 
-func New(namespace string) *Database {
-	client := redis.NewClient(&redis.Options{})
-
+func New(client *redis.Client, namespace string) *Database {
 	db := &Database{
 		client: client,
 	}
@@ -143,6 +141,8 @@ func (d *Database) NewBatchWithSize(size int) ethdb.Batch {
 
 // NewIterator implements ethdb.KeyValueStore.
 func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
+	d.iteratorCount.Add(1)
+
 	ctx := context.Background()
 	size := 100
 

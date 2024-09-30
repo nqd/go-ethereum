@@ -1,4 +1,4 @@
-package remoteredis
+package redis
 
 import (
 	"context"
