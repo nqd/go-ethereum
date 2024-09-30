@@ -16,8 +16,6 @@ import (
 type Database struct {
 	client *redis.Client
 
-	deleteMeter metrics.Meter
-
 	deleteCountMeter   metrics.Meter
 	getCountMeter      metrics.Meter
 	hasCountMeter      metrics.Meter
@@ -145,6 +143,8 @@ func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 
 	ctx := context.Background()
 	size := 100
+	pr := string(prefix)
+	st := string(append(prefix, start...))
 
 	iter := iterator{
 		index: -1,
@@ -152,14 +152,16 @@ func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 	}
 	// get all kv at one then sort the result
 	// though this is not efficient, but rit is the only way to implement sorted iterator in redis
-	rit := d.client.Scan(ctx, 0, string(prefix), 0).Iterator()
+	rit := d.client.Scan(ctx, 0, pr+"*", 0).Iterator()
 
 	for rit.Next(ctx) {
 		k := rit.Val()
-		iter.kvs = append(iter.kvs, keyvalue{
-			key:   k,
-			value: nil,
-		})
+		if k >= st {
+			iter.kvs = append(iter.kvs, keyvalue{
+				key:   k,
+				value: nil,
+			})
+		}
 	}
 	if err := rit.Err(); err != nil {
 		iter.err = err
@@ -221,7 +223,7 @@ func (d *Database) meter(refresh time.Duration) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		d.deleteMeter.Mark(d.deleteCount.Swap(0))
+		d.deleteCountMeter.Mark(d.deleteCount.Swap(0))
 		d.getCountMeter.Mark(d.getCount.Swap(0))
 		d.hasCountMeter.Mark(d.hasCount.Swap(0))
 		d.putCountMeter.Mark(d.putCount.Swap(0))
@@ -229,4 +231,8 @@ func (d *Database) meter(refresh time.Duration) {
 		d.batchWithSizeMeter.Mark(d.batchWithSizeCount.Swap(0))
 		d.iteratorCountMeter.Mark(d.iteratorCount.Swap(0))
 	}
+}
+
+func (d *Database) Reset() error {
+	return d.client.FlushAll(context.Background()).Err()
 }
