@@ -3,6 +3,8 @@ package remoteredis
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -141,7 +143,62 @@ func (d *Database) NewBatchWithSize(size int) ethdb.Batch {
 
 // NewIterator implements ethdb.KeyValueStore.
 func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
-	panic("unimplemented")
+	ctx := context.Background()
+	size := 100
+
+	iter := iterator{
+		index: -1,
+		kvs:   make([]keyvalue, 0, size),
+	}
+	// get all kv at one then sort the result
+	// though this is not efficient, but rit is the only way to implement sorted iterator in redis
+	rit := d.client.Scan(ctx, 0, string(prefix), 0).Iterator()
+
+	for rit.Next(ctx) {
+		k := rit.Val()
+		iter.kvs = append(iter.kvs, keyvalue{
+			key:   k,
+			value: nil,
+		})
+	}
+	if err := rit.Err(); err != nil {
+		iter.err = err
+	}
+
+	// sort by the key
+	slices.SortFunc(iter.kvs, func(a, b keyvalue) int {
+		return strings.Compare(a.key, b.key)
+	})
+
+	// query values via pipeline
+	cmds, err := d.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for i := range iter.kvs {
+			cmd := pipe.Get(ctx, iter.kvs[i].key)
+			if cmd.Err() != nil {
+				return cmd.Err()
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		iter.err = err
+	}
+
+	for i, cmd := range cmds {
+		if cmd.Err() != nil {
+			iter.err = cmd.Err()
+			break
+		}
+		val, err := cmd.(*redis.StringCmd).Bytes()
+		if err != nil {
+			iter.err = err
+			break
+		}
+
+		iter.kvs[i].value = val
+	}
+
+	return &iter
 }
 
 // Put implements ethdb.KeyValueStore.
@@ -156,7 +213,7 @@ func (d *Database) Put(key []byte, value []byte) error {
 
 // Stat implements ethdb.KeyValueStore.
 func (d *Database) Stat() (string, error) {
-	panic("unimplemented")
+	return "", nil
 }
 
 func (d *Database) meter(refresh time.Duration) {
