@@ -243,5 +243,7 @@ func (d *Database) meter(refresh time.Duration) {
 }
 
 func (d *Database) Reset() error {
-	return d.client.FlushAll(context.Background()).Err()
+	return d.client.ForEachMaster(context.Background(), func(ctx context.Context, client *redis.Client) error {
+		return client.FlushAll(context.Background()).Err()
+	})
 }

@@ -24,6 +24,5 @@ func TestRedisDatabase(t *testing.T) {
 
 			return db
 		})
-
 	})
 }

@@ -30,8 +30,10 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/ethdb/pebble"
+	redisDB "github.com/ethereum/go-ethereum/ethdb/redis"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/olekukonko/tablewriter"
+	"github.com/redis/go-redis/v9"
 )
 
 // freezerdb is a database wrapper that enables ancient chain segment freezing.
@@ -327,9 +329,20 @@ func NewPebbleDBDatabase(file string, cache int, handles int, namespace string, 
 	return NewDatabase(db), nil
 }
 
+func NewRedisDBDatabase(addr string, namespace string) (ethdb.Database, error) {
+	client := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:        []string{"localhost:7000", "localhost:7001", "localhost:7002", "localhost:7003", "localhost:7004", "localhost:7005"},
+		MaxRedirects: 16,
+	})
+	db := redisDB.New(client, namespace)
+
+	return NewDatabase(db), nil
+}
+
 const (
 	dbPebble  = "pebble"
 	dbLeveldb = "leveldb"
+	dbRedis   = "redis"
 )
 
 // PreexistingDatabase checks the given data directory whether a database is already
@@ -351,7 +364,7 @@ func PreexistingDatabase(path string) string {
 // OpenOptions contains the options to apply when opening a database.
 // OBS: If AncientsDirectory is empty, it indicates that no freezer is to be used.
 type OpenOptions struct {
-	Type              string // "leveldb" | "pebble"
+	Type              string // "leveldb" | "pebble" | "remotekv"
 	Directory         string // the datadir
 	AncientsDirectory string // the ancients-dir
 	Namespace         string // the namespace for database relevant metrics
@@ -370,8 +383,10 @@ type OpenOptions struct {
 //	db is non-existent |  pebble default  |  specified type
 //	db is existent     |  from db         |  specified type (if compatible)
 func openKeyValueDatabase(o OpenOptions) (ethdb.Database, error) {
+	fmt.Printf("DB type %s\n", o.Type)
+
 	// Reject any unsupported database type
-	if len(o.Type) != 0 && o.Type != dbLeveldb && o.Type != dbPebble {
+	if len(o.Type) != 0 && o.Type != dbLeveldb && o.Type != dbPebble && o.Type != dbRedis {
 		return nil, fmt.Errorf("unknown db.engine %v", o.Type)
 	}
 	// Retrieve any pre-existing database's type and use that or the requested one
@@ -388,6 +403,11 @@ func openKeyValueDatabase(o OpenOptions) (ethdb.Database, error) {
 		log.Info("Using leveldb as the backing database")
 		return NewLevelDBDatabase(o.Directory, o.Cache, o.Handles, o.Namespace, o.ReadOnly)
 	}
+	if o.Type == dbRedis {
+		addr := os.Getenv("GETH_REDIS_ADDR")
+		return NewRedisDBDatabase(addr, o.Namespace)
+	}
+
 	// No pre-existing database, no user-requested one either. Default to Pebble.
 	log.Info("Defaulting to pebble as the backing database")
 	return NewPebbleDBDatabase(o.Directory, o.Cache, o.Handles, o.Namespace, o.ReadOnly, o.Ephemeral)
