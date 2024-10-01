@@ -331,7 +331,7 @@ func NewPebbleDBDatabase(file string, cache int, handles int, namespace string, 
 
 func NewRedisDBDatabase(addr string, namespace string) (ethdb.Database, error) {
 	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:        []string{"localhost:7000", "localhost:7001", "localhost:7002", "localhost:7003", "localhost:7004", "localhost:7005"},
+		Addrs:        []string{addr},
 		MaxRedirects: 16,
 	})
 	db := redisDB.New(client, namespace)
@@ -405,6 +405,7 @@ func openKeyValueDatabase(o OpenOptions) (ethdb.Database, error) {
 	}
 	if o.Type == dbRedis {
 		addr := os.Getenv("GETH_REDIS_ADDR")
+		log.Info("Using redis as the backing database")
 		return NewRedisDBDatabase(addr, o.Namespace)
 	}
 
