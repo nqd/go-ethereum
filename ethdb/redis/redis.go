@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 type Database struct {
-	client *redis.Client
+	client *redis.ClusterClient
 
 	deleteCountMeter   metrics.Meter
 	getCountMeter      metrics.Meter
@@ -39,7 +40,7 @@ const (
 
 var errRemoteRedisNotFound = errors.New("not found")
 
-func New(client *redis.Client, namespace string) *Database {
+func New(client *redis.ClusterClient, namespace string) *Database {
 	db := &Database{
 		client: client,
 	}
@@ -146,24 +147,32 @@ func (d *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 	pr := string(prefix)
 	st := string(append(prefix, start...))
 
+	// get all kv at one then sort the result
+	// though this is not efficient, but this is the only way to implement sorted iterator in redis
+	// for each master function run in parallel
 	iter := iterator{
 		index: -1,
 		kvs:   make([]keyvalue, 0, size),
 	}
-	// get all kv at one then sort the result
-	// though this is not efficient, but rit is the only way to implement sorted iterator in redis
-	rit := d.client.Scan(ctx, 0, pr+"*", 0).Iterator()
+	var kvsLock sync.Mutex
+	err := d.client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+		rit := client.Scan(ctx, 0, pr+"*", 0).Iterator()
 
-	for rit.Next(ctx) {
-		k := rit.Val()
-		if k >= st {
-			iter.kvs = append(iter.kvs, keyvalue{
-				key:   k,
-				value: nil,
-			})
+		for rit.Next(ctx) {
+			k := rit.Val()
+			if k >= st {
+				kvsLock.Lock()
+				iter.kvs = append(iter.kvs, keyvalue{
+					key:   k,
+					value: nil,
+				})
+				kvsLock.Unlock()
+			}
 		}
-	}
-	if err := rit.Err(); err != nil {
+		return rit.Err()
+	})
+
+	if err != nil {
 		iter.err = err
 	}
 
